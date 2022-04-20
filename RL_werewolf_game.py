@@ -17,25 +17,38 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ##@title Game Class
 
 class Game:
-  def __init__(self, num_players=12, num_wolves=4, pwh=True, total_round=10):
+  def __init__(self, num_players=12, num_wolves=4, roles="swhf", total_round=10):
 
     # Read input
     self.num_players = num_players
     self.num_wolves = num_wolves
-    self.pwh = pwh
-    self.total_round = total_round
+    self.roles = roles # default villager roles: seer, witch, hunter, fool (swhf)
+    self.num_roles = 6 # number of different roles
+    self.total_round = total_round # maximum game rounds, game will be forced to end after this many rounds
 
-    # Initialize status array
-    self.status = assign_roles(self.num_players, self.num_wolves, self.pwh)
+    # true player identities (not given to players)
+    self.roles = self.assign_roles() # size: num_roles * num_players (one hot encoding for players' true identities)
+
+    # global state variables (not given to players)
     self.ended = False
     self.witch_poison = True
     self.witch_antedote = True
+
+    # public information
+    self.alive = torch.ones((self.total_round, self.num_players)) # size: total_round * num_players (turn number, player id) -> whether still alive at this turn
+    self.hunter_kill = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players (turn number, player id) -> whether hunter killed this player at this turn
     self.vote_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players -> vote (in terms of player id)
-    self.evaluation_history = torch.zeros((self.total_round, self.num_players, self.num_players)) # size: total_round * num_players * num_players (turn number, player id, evaluated player id) -> evaluation
-    self.kill_vote_history = torch.zeros((self.total_round, self.num_players, self.num_wolves)) # size: total_round * num_players * num_wolves (turn number, player id, which wolf) -> probability distribution
-    self.prophet_history = torch.zeros((self.total_round, 2)) # size: 2 * total_round (each turn, record id detected and good / bad)
-    self.witch_history = torch.zeros((self.total_round, 2)) # size: 2 * total_round (poison / antedote used at which round)
-    self.hunter_history = torch.zeros(self.total_round) # length: total_round
+    self.identity_claim_history = torch.zeros((self.total_round, self.num_roles, self.num_players)) # size: total_round * num_players (turn number, role, player id) -> whether player claims to be this role
+    self.testimony_history = torch.zeros((self.total_round, self.num_players, self.num_players)) # size: total_round * num_players * num_players (turn number, player id, evaluated player id) -> evaluation
+    self.eliminate_vote_history = torch.zeros((self.total_round, self.num_players, self.num_wolves)) # size: total_round * num_players * num_wolves (turn number, player id, which wolf) -> probability distribution
+    
+    # private information
+    self.seer_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players (which player checked and identity given [0: unchecked, 1: villager, -1: werewolf])
+    self.witch_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players (werewolf kill target given, poison, antedote used [0: not killed, 1: killed not saved, 2: killed saved, -1: poisoned])
+    self.hunter_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players ([all 0 if cannot use ability, all 1 if can use ability, -1 for ability target])
+    # self.wolf_history = torch.zeros((self.total_round, self.num_players * 2)) # size: total_round * num_players (average of kill discussion record, space for strategy discussion)
+    self.wolf_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players (average of kill discussion record)
+    self.civilian_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players (ALL EMPTY) (fool also has no access to private information)
 
 
   def next_round(self):
@@ -91,7 +104,7 @@ class Game:
 
 
     # What are the results? i.e. rewards
-    reward = get_reward(self.status) # or, conditional evaluation
+    reward = self.get_reward(self.status) # or, conditional evaluation
     
     # Check situation
     alives = check_alives(self.status)
@@ -105,9 +118,9 @@ class Game:
       message, running = self.next_round()
     return message
 
-  def assign_roles(num_players, num_wolves, pwh):
+  def assign_roles(self):
     status = []
-    # Prophet, witch, hunters
+    # Seer, witch, hunters
     status.append(3)
     status.append(4)
     status.append(5)

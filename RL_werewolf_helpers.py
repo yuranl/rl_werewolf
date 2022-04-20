@@ -16,3 +16,11 @@ def epsilon_greedy(n_actions, epsilon, device):
         q_pred = q_net(state)
         return torch.argmax(q_pred).view(1,)
   return policy_fn
+
+# reward for each player at end of game
+# returns 12*1 array, reward for each player
+def compute_final_reward(game):
+  if not game.ended:
+    raise Exception("reward given before game ended")
+  
+  pass
