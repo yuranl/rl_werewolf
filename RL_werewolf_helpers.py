@@ -38,9 +38,12 @@ def check_alives(status):
   deities = [id for id, player in enumerate(status) if player > 2]
   return (len(wolves), len(villagers), len(deities))
 
-def epsilon_greedy(q_values, epsilon):
-    if np.random.random() > epsilon:
-        action = np.argmax(q_values)
+def epsilon_greedy(n_actions, epsilon, device):
+  def policy_fn(q_net, state):
+    if torch.rand(1) < epsilon:
+      return torch.randint(n_actions, size=(1,), device=device)
     else:
-        action = np.random.choice(len(q_values))
-    return action
+      with torch.no_grad():
+        q_pred = q_net(state)
+        return torch.argmax(q_pred).view(1,)
+  return policy_fn
