@@ -37,3 +37,10 @@ def check_alives(status):
   villagers = [id for id, player in enumerate(status) if player==2]
   deities = [id for id, player in enumerate(status) if player > 2]
   return (len(wolves), len(villagers), len(deities))
+
+def epsilon_greedy(q_values, epsilon):
+    if np.random.random() > epsilon:
+        action = np.argmax(q_values)
+    else:
+        action = np.random.choice(len(q_values))
+    return action

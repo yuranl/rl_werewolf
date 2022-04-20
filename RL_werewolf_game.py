@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 # Initialization
 random.seed(42)
-
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 ##@title Game Class
 

@@ -1,12 +1,23 @@
 # Code source: Worksheet W12D2
+# Heavily Modified
+
+import random
+from collections import defaultdict
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+# Q Network: given the game states, decide what to do
 
 class QNetwork(nn.Module):
-  def __init__(self, n_channels, n_actions):
+  def __init__(self, input_size, n_actions):
     super().__init__()
-    self.conv = nn.Conv2d(in_channels=n_channels, out_channels=16,
-                          kernel_size=3, stride=1)
-    self.fc1 = nn.Linear(in_features=1024, out_features=128)
-    self.fc2 = nn.Linear(in_features=128, out_features=n_actions)
+    self.fc1 = nn.Linear(input_size, 1024)
+    self.fc2 = nn.Linear(1024, 128)
+    self.fc3 = nn.Linear(128, n_actions)
+    self.drop = nn.Dropout()
 
   def forward(self, x):
     ####################################################################
@@ -15,26 +26,15 @@ class QNetwork(nn.Module):
     # raise NotImplementedError("Q network")
     ####################################################################
 
-    # Pass the input through the convnet layer with ReLU activation
-    x = torch.relu((self.conv(x)))
-    # Flatten the result while preserving the batch dimension
-    x = torch.flatten(x, 1)
-    # Pass the result through the first linear layer with ReLU activation
-    x = torch.relu(self.fc1(x))
-    # Finally pass the result through the second linear layer and return
-    x = self.fc2(x)
+    x = torch.relu((self.drop(self.fc1(x))))
+    x = torch.relu((self.drop(self.fc2(x))))
+    x = torch.relu((self.fc3(x)))
+
+    # Returning something that is not softmax-ed.
     return x
 
 # Uncomment below to test your module
-env = Environment('breakout', random_seed=522)
-q_net = QNetwork(env.n_channels, env.num_actions()).to(device)
-env.reset()
-state = env.state()
-# note: phi() transforms the state to make it compatible with PyTorch
-q_net(phi(state))
-
-# Code Source: Worksheet W12D2
-# Modified
+# q_net = QNetwork().to(device)
 
 class QNetworkAgent:
   def __init__(self, policy, q_net, optimizer):
@@ -68,3 +68,20 @@ class QNetworkAgent:
     self.optimizer.zero_grad()
     loss.backward()
     self.optimizer.step()
+
+n_steps = 50000
+gamma = 0.99
+epsilon = 0.1
+
+q_net = QNetwork().to(device)
+policy = epsilon_greedy(env.num_actions(), epsilon)
+optimizer = torch.optim.Adam(q_net.parameters(), lr=1e-3)
+agent = QNetworkAgent(policy, q_net, optimizer)
+eps_b_qn = learn_env(env, agent, gamma, n_steps)
+
+plt.figure(figsize=(8, 4))
+plt.plot(eps_b_qn[0])
+plt.title('breakout reward curve')
+plt.xlabel('episode')
+plt.ylabel('return')
+plt.show()
