@@ -246,10 +246,16 @@ class Game:
     if self.check_ended(alives):
       result_str = self.check_end_reason(alives)
       if result_str == "Wolves Lost!":
+        self.werewolf_reward -= 5
         self.villager_reward += 5
       if result_str == "Deities Killed!":
+        self.villager_reward -= 2
+        self.seer_reward -= 1
+        self.witch_reward -= 1
+        self.hunter_reward -= 1
         self.werewolf_reward += 5
       if result_str == "Villagers Lost!":
+        self.villager_reward -= 3
         self.werewolf_reward += 5
 
     # actions = self.get_actions()
@@ -324,7 +330,7 @@ class Game:
     elif alive_status[2] == 0:
       return "Deities Killed!"
     else:
-      return "A tie... no party died out, so far."
+      return "Tie!"
 
   def check_ended(self, alive_status):
     return min(alive_status) == 0 or self.curr_round >= self.total_round - 1
