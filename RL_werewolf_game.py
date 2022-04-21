@@ -28,7 +28,7 @@ class Game:
     self.curr_round = 0
 
     # true player identities (not given to players)
-    self.roles = self.assign_roles() # size: num_players * num_roles (one hot encoding for players' true identities)
+    self.roles_compact, self.roles = self.assign_roles() # size: num_players * num_roles (one hot encoding for players' true identities)
 
     # global state variables (not given to players)
     self.ended = False
@@ -50,11 +50,13 @@ class Game:
     # self.wolf_history = torch.zeros((self.total_round, self.num_players * 2)) # size: total_round * num_players (average of kill discussion record, space for strategy discussion)
     self.wolf_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players (average of kill discussion record)
     self.civilian_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players (ALL EMPTY) (fool also has no access to private information)
-    self.dict_info = {0: self.wolf_history, 1: self.civilian_history, 2: self.seer_history, 3: self.witch_history, 4: self.hunter_history, 5: self.civilian_history}
-    self.dict_agent = {0: self.werewolf_agent, 1: self.villager_agent, 2: self.seer_agent, 3: self.witch_agent, 4: self.hunter_agent, 5: self.fool_agent}
-
+    
     # Player Agents
     self.villager_agent, self.werewolf_agent, self.seer_agent, self.witch_agent, self.hunter_agent, self.fool_agent = agents
+
+    # Helpers
+    self.dict_info = {0: self.wolf_history, 1: self.civilian_history, 2: self.seer_history, 3: self.witch_history, 4: self.hunter_history, 5: self.civilian_history}
+    self.dict_agent = {0: self.werewolf_agent, 1: self.villager_agent, 2: self.seer_agent, 3: self.witch_agent, 4: self.hunter_agent, 5: self.fool_agent}
 
   def next_round(self):
 
@@ -86,7 +88,7 @@ class Game:
       if curr_alive[i] > 0 and self.roles[i][0] == 1:
           # This will be later updated (can do votes on distribution)
           wolf_input = self.prep_input(self.wolf_history)
-          vote = F.softmax(self.werewolf_agent(wolf_input, "act")) # softmax
+          vote = F.softmax(self.werewolf_agent.act(wolf_input, "act")) # softmax
           vote_kill += vote
     to_kill = torch.argmax(vote_kill)
 
@@ -110,10 +112,10 @@ class Game:
     for i in range(len(self.roles)):
       if curr_alive[i] > 0:
           # This will be later updated (can do votes on distribution)
-          role = torch.argmax(self.roles[i])
+          role = int(torch.argmax(self.roles[i]))
           input = self.prep_input(self.dict_info[role])
           agent = self.dict_agent[role]
-          vote = torch.argmax(agent(input, "vote"))
+          vote = torch.argmax(agent.act(input, "vote"))
           vote_out[vote] += 1
     to_vote = torch.argmax(vote_out)
     curr_alive[to_vote] = min(curr_alive[to_vote], 0)
@@ -126,12 +128,13 @@ class Game:
 
 
     # What are the results? i.e. rewards
-    reward = self.get_reward(self.status) # or, conditional evaluation
+    # reward = self.get_reward(self.status) # or, conditional evaluation
     
     # Check situation
-    alives = self.check_alives(self.status)
-    if check_ended(alives):
-      return check_end_reason(alives), False
+    # print([int(role) if self.alive[self.curr_round][i] == 1 else 9 for i, role in enumerate(self.roles_compact)])
+    alives = self.check_alives()
+    if self.check_ended(alives):
+      return self.check_end_reason(alives), False
     return "", True
   
   def run(self):
@@ -149,12 +152,11 @@ class Game:
     status[4:8, 1] = 1 # villagers
     status[8:12, 0] = 1 # werewolves
     status = status[torch.randperm(status.size()[0])]
-    return(status)
+    return torch.flatten(torch.nonzero(status)[:,1]), status
 
 
   # Checks for final conditions
-
-  def check_end_reason(alive_status):
+  def check_end_reason(self, alive_status):
     if alive_status[0] == 0:
       return "Wolves Lost!"
     elif alive_status[1] == 0:
@@ -162,18 +164,22 @@ class Game:
     elif alive_status[2] == 0:
       return "Deities Killed!"
     else:
-      return "Wait... It shouldn't end here."
+      return "A tie... no party died out, so far."
 
-  def check_ended(alive_status):
-    return min(alive_status) == 0
+  def check_ended(self, alive_status):
+    return min(alive_status) == 0 or self.curr_round >= self.total_round - 1
 
-  def check_alives(status):
+  def check_alives(self):
     # Checking the remaining alives for each of the powers
-    wolves = [id for id, player in enumerate(status) if player==1]
-    villagers = [id for id, player in enumerate(status) if player==2]
-    deities = [id for id, player in enumerate(status) if player > 2]
+    alive = self.alive[self.curr_round]
+    wolves = [1 for alive, role in zip(alive, self.roles_compact) if role==0 and alive==1]
+    villagers = [1 for alive, role in zip(alive, self.roles_compact) if role==1 and alive==1]
+    deities = [1 for alive, role in zip(alive, self.roles_compact) if role>1 and alive==1]
+    # print(len(wolves), len(villagers), len(deities))
     return (len(wolves), len(villagers), len(deities))
     
   def prep_input(self, private_info):
-    return torch.cat([self.alive, self.hunter_kill, self.vote_history,
-      self.identity_claim_history, self.testimony_history, self.eliminate_vote_history, private_info])
+    result = torch.cat([self.alive[:,:,None], self.hunter_kill[:,:,None], self.vote_history[:,:,None],
+      self.identity_claim_history.permute(0,2,1), self.testimony_history, self.eliminate_vote_history,
+      private_info[:,:,None]], dim=2)
+    return result

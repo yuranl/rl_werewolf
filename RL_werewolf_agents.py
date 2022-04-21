@@ -27,7 +27,6 @@ class QNetwork(nn.Module):
 
   def forward(self, x, act_type):
     x = self.flatten(x)
-    print(x.shape)
     x = torch.relu((self.drop(self.fc1(x))))
     x = torch.relu((self.drop(self.fc2(x))))
     x = self.decoders[act_type](x)
@@ -40,10 +39,10 @@ class QNetworkAgent:
     self.q_net = q_net
     self.optimizer = optimizer
   
-  def act(self, state):
+  def act(self, state, action):
     # on selecting, we do not grad
     with torch.no_grad():
-      return self.policy(self.q_net, state)
+      return self.q_net(state, action) # self.policy(self.q_net, state)
   
   def train(self, state, action, reward, discount, next_state, frame):
     # Predicted Q value

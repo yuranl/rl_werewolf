@@ -1,12 +1,12 @@
 from RL_werewolf_agents import *
 from RL_werewolf_game import *
 from RL_werewolf_helpers import *
-
+import time
 
 # Initializing agents
 
 def generate_trios():
-    net = QNetwork()
+    net = QNetwork(3120, 12)
     opt = torch.optim.Adam(net.parameters(), lr=1e-3)
     agent = QNetworkAgent(None, net, opt)
     return net, opt, agent
@@ -20,7 +20,10 @@ fool_net, fool_opt, fool_agent = generate_trios()
 
 # Running - Random Results
 results = defaultdict(int)
-for i in range(1):
-  game = Game(agents=(villager_agent, werewolf_agent, seer_agent, witch_agent, hunter_agent, fool_agent))
+
+start_time = time.time()
+for i in range(100):
+  game = Game(total_round=10, agents=(villager_agent, werewolf_agent, seer_agent, witch_agent, hunter_agent, fool_agent))
   results[game.run()] += 1
 print(results)
+print("--- %s seconds ---" % (time.time() - start_time))
