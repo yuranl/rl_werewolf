@@ -250,6 +250,13 @@ class Game:
       return result_str, False
     return "", True
   
+  # get player id given unique role (doesn't work for villagers and werewolfs)
+  def player_id_role(self, role):
+    for id in range(self.num_players):
+      if self.roles[id][role] == 1:
+        return id
+    return -1
+  
   def run(self):
     message, running = "", True
     while running:
