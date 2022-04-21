@@ -61,6 +61,7 @@ class Game:
     # Helpers
     self.dict_info = {0: self.wolf_history, 1: self.civilian_history, 2: self.seer_history, 3: self.witch_history, 4: self.hunter_history, 5: self.civilian_history}
     self.dict_agent = {0: self.werewolf_agent, 1: self.villager_agent, 2: self.seer_agent, 3: self.witch_agent, 4: self.hunter_agent, 5: self.fool_agent}
+    self.dict_rewards = {0: self.werewolf_reward, 1: self.villager_reward, 2: self.seer_reward, 3: self.witch_reward, 4: self.hunter_reward, 5: self.fool_reward}
 
   def next_round(self):
 
@@ -152,7 +153,8 @@ class Game:
       if result_str == "Villagers Lost!":
         self.werewolf_reward += 5
 
-    
+    actions = self.get_actions()
+    rewards = self.get_rewards()
     self.update_all_models(beginning_all_states, end_all_states, actions, rewards)
 
     if self.check_ended(alives):
@@ -177,13 +179,29 @@ class Game:
     return torch.flatten(torch.nonzero(status)[:,1]), status
 
   def get_all_states(self):
-    common_state = self.prep_input(self.civilian_history)
     wolf_state = self.prep_input(self.wolf_history)
+    common_state = self.prep_input(self.civilian_history)
     seer_state = self.prep_input(self.seer_history)
     witch_state = self.prep_input(self.witch_history)
     hunter_state = self.prep_input(self.hunter_history)
     fool_state = self.prep_input(self.civilian_history)
-    return common_state, wolf_state, seer_state, witch_state, hunter_state, fool_state
+    return wolf_state, common_state, seer_state, witch_state, hunter_state, fool_state
+
+  def get_actions(self):
+    # getting the actions of all players
+    pass
+
+  def get_rewards(self):
+    # maybe later?
+    self.fool_reward = self.villager_reward
+    return self.werewolf_reward, self.villager_reward, self.seer_reward, self.witch_reward, self.hunter_reward, self.fool_reward
+
+  def update_all_models(self, beginning_all_states, end_all_states, actions, rewards):
+    for i in range(self.num_players):
+      role = int(self.roles_compact[i])
+      self.dict_agent[role].train(beginning_all_states[role], actions[i], self.dict_rewards[role], end_all_states)
+
+
   # Checks for final conditions
   def check_end_reason(self, alive_status):
     if alive_status[0] == 0:
