@@ -1,3 +1,4 @@
+from xxlimited import foo
 from RL_werewolf_helpers import *
 from RL_werewolf_agents import *
 
@@ -54,6 +55,9 @@ class Game:
     # Player Agents
     self.villager_agent, self.werewolf_agent, self.seer_agent, self.witch_agent, self.hunter_agent, self.fool_agent = agents
 
+    # Rewards for each game
+    self.villager_reward, self.werewolf_reward, self.seer_reward, self.witch_reward, self.hunter_reward, self.fool_reward = 0,0,0,0,0,0
+
     # Helpers
     self.dict_info = {0: self.wolf_history, 1: self.civilian_history, 2: self.seer_history, 3: self.witch_history, 4: self.hunter_history, 5: self.civilian_history}
     self.dict_agent = {0: self.werewolf_agent, 1: self.villager_agent, 2: self.seer_agent, 3: self.witch_agent, 4: self.hunter_agent, 5: self.fool_agent}
@@ -67,6 +71,7 @@ class Game:
 
     # Get current alive players
     curr_alive = self.alive[self.curr_round]
+    beginning_all_states = self.get_all_states()
 
     #########################################
     ### Every Player does his thing ###
@@ -88,7 +93,8 @@ class Game:
       if curr_alive[i] > 0 and self.roles[i][0] == 1:
           # This will be later updated (can do votes on distribution)
           wolf_input = self.prep_input(self.wolf_history)
-          vote = F.softmax(self.werewolf_agent.act(wolf_input, "act")) # softmax
+          vote = self.werewolf_agent.act(wolf_input, "act") # softmax
+          vote = F.softmax(vote, dim=0)
           vote_kill += vote
     to_kill = torch.argmax(vote_kill)
 
@@ -133,8 +139,24 @@ class Game:
     # Check situation
     # print([int(role) if self.alive[self.curr_round][i] == 1 else 9 for i, role in enumerate(self.roles_compact)])
     alives = self.check_alives()
+
+    end_all_states = self.get_all_states()
+
+    # Summarize all losts (incorporate this into the other things, later)
     if self.check_ended(alives):
-      return self.check_end_reason(alives), False
+      result_str = self.check_end_reason(alives)
+      if result_str == "Wolves Lost!":
+        self.villager_reward += 5
+      if result_str == "Deities Killed!":
+        self.werewolf_reward += 5
+      if result_str == "Villagers Lost!":
+        self.werewolf_reward += 5
+
+    
+    self.update_all_models(beginning_all_states, end_all_states, actions, rewards)
+
+    if self.check_ended(alives):
+      return result_str, False
     return "", True
   
   def run(self):
@@ -154,7 +176,14 @@ class Game:
     status = status[torch.randperm(status.size()[0])]
     return torch.flatten(torch.nonzero(status)[:,1]), status
 
-
+  def get_all_states(self):
+    common_state = self.prep_input(self.civilian_history)
+    wolf_state = self.prep_input(self.wolf_history)
+    seer_state = self.prep_input(self.seer_history)
+    witch_state = self.prep_input(self.witch_history)
+    hunter_state = self.prep_input(self.hunter_history)
+    fool_state = self.prep_input(self.civilian_history)
+    return common_state, wolf_state, seer_state, witch_state, hunter_state, fool_state
   # Checks for final conditions
   def check_end_reason(self, alive_status):
     if alive_status[0] == 0:

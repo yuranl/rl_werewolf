@@ -25,6 +25,13 @@ class QNetwork(nn.Module):
     self.drop = nn.Dropout()
     self.decoders = {"act": self.fc_act, "identity": self.fc_identity, "evaluation": self.fc_evaluation, "vote": self.fc_vote}
 
+    torch.nn.init.xavier_uniform_(self.fc1.weight)
+    torch.nn.init.xavier_uniform_(self.fc2.weight)
+    torch.nn.init.xavier_uniform_(self.fc_act.weight)
+    torch.nn.init.xavier_uniform_(self.fc_identity.weight)
+    torch.nn.init.xavier_uniform_(self.fc_evaluation.weight)
+    torch.nn.init.xavier_uniform_(self.fc_vote.weight)
+
   def forward(self, x, act_type):
     x = self.flatten(x)
     x = torch.relu((self.drop(self.fc1(x))))
@@ -44,20 +51,17 @@ class QNetworkAgent:
     with torch.no_grad():
       return self.q_net(state, action) # self.policy(self.q_net, state)
   
-  def train(self, state, action, reward, discount, next_state, frame):
+  def train(self, state, action, reward, next_state):
     # Predicted Q value
-    q_pred = self.q_net(state) # .gather(1, action)
+    # action: type of decoder
+    q_pred = self.q_net(state, action) # .gather(1, action)
 
     # Now compute the q-value target (also called td target or bellman backup) (no grad) 
     with torch.no_grad():
       # get the best Q-value from the next state (there are still multiple action choices, so we still need to choose among these)
-      """TODO: 问题是 我们一轮结束之后才能知道下一次的state，不是吗（当然狼人也可以说，我知道刀了谁之后下一个再刀谁最好，云云；
-      这些确实也对。但是，也许我们可以只用states的value? 然后根据这些去train state values
-      或者，就是直接假定刀完之后没有其他因素介入（至少在算的时候），然后选择最好的"""
-      q_target = self.q_net(next_state).max(dim=1)[0].view(-1, 1)
-      """TODO:看一下这个.view函数"""
+      q_target = self.q_net(next_state, action).max(dim=1)[0].view(-1, 1)
       # Next apply the reward and discount to get the q-value target
-      q_target = reward + discount * q_target
+      q_target = reward + q_target
     # Compute the MSE loss between the predicted and target values
     loss = F.mse_loss(q_pred, q_target)
 
