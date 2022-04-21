@@ -35,6 +35,11 @@ class Game:
     self.ended = False
     self.witch_poison = True
     self.witch_antedote = True
+    self.role2_id = self.player_id_role(2)
+    self.role3_id = self.player_id_role(3)
+    self.role4_id = self.player_id_role(4)
+    self.role5_id = self.player_id_role(5)
+    self.hunter_night_ability = False # True only if hunter just died and can use his ability at the start of next day
 
     # public information
     self.alive = torch.ones((self.total_round, self.num_players)) # size: total_round * num_players (turn number, player id) -> whether still alive at this turn
@@ -91,7 +96,7 @@ class Game:
     """
     vote_kill = torch.zeros(self.num_players)
     for i in range(len(self.roles)):
-      if curr_alive[i] > 0 and self.roles[i][0] == 1:
+      if self.alive[self.curr_round][i] > 0 and self.roles[i][0] == 1: # alive and is wolf
           # This will be later updated (can do votes on distribution)
           wolf_input = self.prep_input(self.wolf_history)
           vote = self.werewolf_agent.act(wolf_input, "act") # softmax
@@ -99,18 +104,92 @@ class Game:
           vote_kill += vote
     to_kill = torch.argmax(vote_kill)
 
-    # Prophet
+    curr_alive[to_kill] = min(curr_alive[to_kill], 0) # update target to dead
+    self.wolf_history[self.curr_round] = vote_kill # update wolf history
+
+    # Seer
+    """
+    Seer will check highest value target from action array returned by seer network.
+    Seer given -1 for a wolf check, and 1 for a villager check.
+    """
+    seer_id = self.role2_id
+    if self.alive[self.curr_round][seer_id] > 0: # action if alive
+      seer_input = self.prep_input(self.seer_history)
+      seer_action = self.seer_net(seer_input, "act")
+      to_check = torch.argmax(seer_action)
+      if self.roles[to_check][0] > 0: # checked player is wolf
+        self.seer_history[self.curr_round][to_check] = -1
+      else: # checked player is villager
+        self.seer_history[self.curr_round][to_check] = 1
 
     # Witch
+    """
+    Determining witch action:
+    In action array returned by witch network:
+    If highest value target = kill target, then witch action is SAVE (use antedote)
+    Else if lowest value target has value < 0, then witch action is KILL (use poison)
+    Else: no action.
+    """
+    witch_id = self.role3_id
+    if self.alive[self.curr_round][witch_id] > 0: # action if alive
 
+      if self.witch_antedote == True: # update witch information with werewolf kill this round
+        self.witch_history[self.curr_round][to_kill] = 1
+      
+      witch_input = self.prep_input(self.witch_history)
+      witch_action = self.witch_net(witch_input, "act")
+      highest = torch.argmax(witch_action)
+      lowest = torch.argmin(witch_action)
+      poisoned = None # needed for hunter information
+      if highest == to_kill and self.witch_antedote == True:
+        curr_alive[to_kill] = 1 # SAVE
+        self.witch_antedote = False
+        self.witch_history[self.curr_round][to_kill] = 2
+      elif witch_action[lowest] < 0 and self.witch_poison == True:
+        curr_alive[lowest] = 0 # KILL
+        poisoned = lowest
+        self.witch_poison = False
+        self.witch_history[self.curr_round][lowest] = -1
+    
     # Hunter
+    """
+    Hunter only given information at night:
+    By default given that they can use their ability.
+    If hunter is poisoned by witch then they can't use their ability.
+    """
+    hunter_id = self.role4_id
+    if self.alive[self.curr_round][hunter_id] > 0: # action if alive
+      self.hunter_history[self.curr_round] = torch.ones(self.num_players) # assume can use ability
+      if curr_alive[hunter_id] <= 0: # hunter is killed and not saved, can use ability next day
+        self.hunter_night_ability = True
+      if hunter_id == poisoned: # can't use ability if poisoned by witch
+        self.hunter_history[self.curr_round] = torch.zeros(self.num_players) # can't use ability
+        self.hunter_night_ability = False
+    
+    ##################
+    ### Process night time results ###
+    ##################
+    self.alive[self.curr_round] = curr_alive
 
 
     ##################
     ### The Day ###
     ##################
     # Who died?
-    curr_alive[to_kill] = min(curr_alive[to_kill], 0)
+    #curr_alive[to_kill] = min(curr_alive[to_kill], 0)
+
+    # Hunter action time
+    """
+    If hunter can use ability and dies, he will kill the lowest value target from the action array, if the lowest value is < 0
+    Otherwise, ability will not be used.
+    """
+    if self.hunter_night_ability == True:
+        hunter_input = self.prep_input(self.hunter_history)
+        hunter_action = self.hunter_net(hunter_input, "act")
+        hunter_lowest = torch.argmin(hunter_action)
+        if hunter_action[hunter_lowest] < 0:
+          self.alive[self.curr_round][hunter_lowest] = 0 # hunter kill
+          self.hunter_kill[self.curr_round][hunter_lowest] = 1 # update public information
 
     # Everyone (showing identity, giving evaluations, voting)
 
