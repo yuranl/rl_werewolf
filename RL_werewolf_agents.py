@@ -51,23 +51,27 @@ class QNetworkAgent:
     with torch.no_grad():
       return self.q_net(state, action) # self.policy(self.q_net, state)
   
-  def train(self, state, action, reward, next_state):
+  def train(self, state, action, reward, next_state, decoder_type):
     # Predicted Q value
     # action: type of decoder
-    q_pred = self.q_net(state, action) # .gather(1, action)
+    q_pred = self.q_net(state, decoder_type)[int(action)]
+    # print(sum(torch.abs(next_state - state)))
 
     # Now compute the q-value target (also called td target or bellman backup) (no grad) 
     with torch.no_grad():
       # get the best Q-value from the next state (there are still multiple action choices, so we still need to choose among these)
-      q_target = self.q_net(next_state, action).max(dim=1)[0].view(-1, 1)
+      q_target = max(self.q_net(next_state, decoder_type))
       # Next apply the reward and discount to get the q-value target
       q_target = reward + q_target
     # Compute the MSE loss between the predicted and target values
     loss = F.mse_loss(q_pred, q_target)
+    print(loss.is_leaf)
 
     # backpropogation to update the q network
     self.optimizer.zero_grad()
+    # print(loss.grad)
     loss.backward()
+    # print(loss.grad)
     self.optimizer.step()
 
 n_steps = 50000

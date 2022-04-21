@@ -1,4 +1,4 @@
-from xxlimited import foo
+from turtle import end_fill
 from RL_werewolf_helpers import *
 from RL_werewolf_agents import *
 
@@ -103,6 +103,7 @@ class Game:
           vote = F.softmax(vote, dim=0)
           vote_kill += vote
     to_kill = torch.argmax(vote_kill)
+    # self.eliminate_vote_history[self.curr_round] = vote_kill
 
     curr_alive[to_kill] = min(curr_alive[to_kill], 0) # update target to dead
     self.wolf_history[self.curr_round] = vote_kill # update wolf history
@@ -205,7 +206,8 @@ class Game:
 
     # Voting
     vote_out = torch.zeros(self.num_players)
-    for i in range(self.num_players):
+    actions = torch.zeros(self.num_players)
+    for i in range(len(self.roles)):
       if curr_alive[i] > 0:
           # This will be later updated (can do votes on distribution)
           role = int(torch.argmax(self.roles[i]))
@@ -213,6 +215,7 @@ class Game:
           agent = self.dict_agent[role]
           vote = torch.argmax(agent.act(input, "vote"))
           vote_out[vote] += 1
+          actions[i] = int(vote)
     to_vote = torch.argmax(vote_out)
     curr_alive[to_vote] = min(curr_alive[to_vote], 0)
 
@@ -242,7 +245,7 @@ class Game:
       if result_str == "Villagers Lost!":
         self.werewolf_reward += 5
 
-    actions = self.get_actions()
+    # actions = self.get_actions()
     rewards = self.get_rewards()
     self.update_all_models(beginning_all_states, end_all_states, actions, rewards)
 
@@ -278,7 +281,9 @@ class Game:
 
   def get_actions(self):
     # getting the actions of all players
-    pass
+    # Not used right now!
+    actions = self.vote_history[self.curr_round-1]
+    return actions
 
   def get_rewards(self):
     # maybe later?
@@ -286,9 +291,14 @@ class Game:
     return self.werewolf_reward, self.villager_reward, self.seer_reward, self.witch_reward, self.hunter_reward, self.fool_reward
 
   def update_all_models(self, beginning_all_states, end_all_states, actions, rewards):
+
+    # Training the voting 
+    voting = actions
     for i in range(self.num_players):
       role = int(self.roles_compact[i])
-      self.dict_agent[role].train(beginning_all_states[role], actions[i], self.dict_rewards[role], end_all_states)
+      self.dict_agent[role].train(beginning_all_states[role], voting[i], rewards[role], end_all_states[role], "vote")
+
+    # Training the votekill, explain, etc. everything else, as we have
 
 
   # Checks for final conditions

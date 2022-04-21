@@ -22,8 +22,13 @@ fool_net, fool_opt, fool_agent = generate_trios()
 results = defaultdict(int)
 
 start_time = time.time()
-for i in range(100):
+prev_weights = villager_agent.q_net.fc1.weight
+for i in range(10):
+
   game = Game(total_round=10, agents=(villager_agent, werewolf_agent, seer_agent, witch_agent, hunter_agent, fool_agent))
   results[game.run()] += 1
+  print(results)
 print(results)
+after_weights = villager_agent.q_net.fc1.weight
+print(torch.sum(torch.abs(after_weights - prev_weights)))
 print("--- %s seconds ---" % (time.time() - start_time))
