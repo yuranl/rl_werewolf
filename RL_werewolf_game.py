@@ -45,7 +45,7 @@ class Game:
     self.alive = torch.ones((self.total_round, self.num_players)) # size: total_round * num_players (turn number, player id) -> whether still alive at this turn
     self.hunter_kill = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players (turn number, player id) -> whether hunter killed this player at this turn
     self.vote_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players -> vote (in terms of player id)
-    self.identity_claim_history = torch.zeros((self.total_round, self.num_roles, self.num_players)) # size: total_round * num_players (turn number, role, player id) -> whether player claims to be this role
+    self.identity_claim_history = torch.zeros((self.total_round, self.num_players, self.num_roles)) # size: total_round * num_players (turn number, role, player id) -> whether player claims to be this role
     self.testimony_history = torch.zeros((self.total_round, self.num_players, self.num_players)) # size: total_round * num_players * num_players (turn number, player id, evaluated player id) -> evaluation
     self.eliminate_vote_history = torch.zeros((self.total_round, self.num_players, self.num_wolves)) # size: total_round * num_players * num_wolves (turn number, player id, which wolf) -> probability distribution
     
@@ -132,6 +132,7 @@ class Game:
     Else: no action.
     """
     witch_id = self.role3_id
+    poisoned = None
     if self.alive[self.curr_round][witch_id] > 0: # action if alive
 
       if self.witch_antedote == True: # update witch information with werewolf kill this round
@@ -333,6 +334,6 @@ class Game:
     
   def prep_input(self, private_info):
     result = torch.cat([self.alive[:,:,None], self.hunter_kill[:,:,None], self.vote_history[:,:,None],
-      self.identity_claim_history.permute(0,2,1), self.testimony_history, self.eliminate_vote_history,
+      self.identity_claim_history, self.testimony_history, self.eliminate_vote_history,
       private_info[:,:,None]], dim=2)
     return result
