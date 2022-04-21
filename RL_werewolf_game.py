@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import copy
 
 
 
@@ -68,7 +69,7 @@ class Game:
     self.dict_agent = {0: self.werewolf_agent, 1: self.villager_agent, 2: self.seer_agent, 3: self.witch_agent, 4: self.hunter_agent, 5: self.fool_agent}
     self.dict_rewards = {0: self.werewolf_reward, 1: self.villager_reward, 2: self.seer_reward, 3: self.witch_reward, 4: self.hunter_reward, 5: self.fool_reward}
 
-  def next_round(self):
+  def next_round(self, print_info):
 
     ####################
     ### The Night ###
@@ -76,7 +77,9 @@ class Game:
     # Prepare situation for the night
 
     # Get current alive players
-    curr_alive = self.alive[self.curr_round]
+    curr_alive = copy.deepcopy(self.alive[self.curr_round])
+    # if print_info:
+    #   print(curr_alive)
     beginning_all_states = self.get_all_states()
 
     #########################################
@@ -99,8 +102,8 @@ class Game:
       if self.alive[self.curr_round][i] > 0 and self.roles[i][0] == 1: # alive and is wolf
           # This will be later updated (can do votes on distribution)
           wolf_input = self.prep_input(self.wolf_history)
-          vote = self.werewolf_agent.act(wolf_input, "act") # softmax
-          vote = F.softmax(vote, dim=0)
+          vote = self.werewolf_agent.act(wolf_input, "act")
+          vote = vote / torch.sum(vote)
           vote_kill += vote
     to_kill = torch.argmax(vote_kill)
     # self.eliminate_vote_history[self.curr_round] = vote_kill
@@ -194,7 +197,7 @@ class Game:
           self.hunter_kill[self.curr_round][hunter_lowest] = 1 # update public information
 
     # Everyone (showing identity, giving evaluations, voting)
-    curr_alive = self.alive[self.curr_round]
+    curr_alive = copy.deepcopy(self.alive[self.curr_round])
     for i in range(self.num_players): 
       if curr_alive[i] > 0: # testimony for each player alive
         role = int(torch.argmax(self.roles[i]))
@@ -246,17 +249,30 @@ class Game:
     if self.check_ended(alives):
       result_str = self.check_end_reason(alives)
       if result_str == "Wolves Lost!":
-        self.werewolf_reward -= 5
-        self.villager_reward += 5
+        self.werewolf_reward -= 10
+        self.villager_reward += 4
+        self.seer_reward += 2
+        self.witch_reward += 2
+        self.hunter_reward += 2
       if result_str == "Deities Killed!":
-        self.villager_reward -= 2
-        self.seer_reward -= 1
-        self.witch_reward -= 1
-        self.hunter_reward -= 1
-        self.werewolf_reward += 5
+        self.villager_reward -= 4
+        self.seer_reward -= 2
+        self.witch_reward -= 2
+        self.hunter_reward -= 2
+        self.werewolf_reward += 10
       if result_str == "Villagers Lost!":
-        self.villager_reward -= 3
-        self.werewolf_reward += 5
+        self.villager_reward -= 4
+        self.seer_reward -= 2
+        self.witch_reward -= 2
+        self.hunter_reward -= 2
+        self.werewolf_reward += 10
+      else:
+        self.villager_reward -= 2
+        self.werewolf_reward -= 3
+        self.seer_reward -= 2
+        self.witch_reward -= 2
+        self.hunter_reward -= 2
+
 
     # actions = self.get_actions()
     rewards = self.get_rewards()
@@ -273,10 +289,10 @@ class Game:
         return id
     return -1
   
-  def run(self):
+  def run(self, print_info):
     message, running = "", True
     while running:
-      message, running = self.next_round()
+      message, running = self.next_round(print_info)
     return message
 
   def assign_roles(self):
@@ -323,6 +339,7 @@ class Game:
 
   # Checks for final conditions
   def check_end_reason(self, alive_status):
+    # print(alive_status)
     if alive_status[0] == 0:
       return "Wolves Lost!"
     elif alive_status[1] == 0:

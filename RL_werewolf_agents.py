@@ -68,6 +68,37 @@ class QNetwork_relu(nn.Module):
     # Returning something that is not softmax-ed.
     return x
 
+class QNetwork_convolution(nn.Module):
+  def __init__(self, input_size, n_actions, n_roles):
+    super().__init__()
+    # input shape: 10 * 12 * 37
+    self.flatten = nn.Flatten()
+    self.flatten1 = nn.Flatten(0)
+    self.conv = nn.Conv1d(12 * 37, 64, 10, stride=5)
+    self.fc2 = nn.Linear(192, 128)
+    self.fc_act = nn.Linear(128, n_actions)
+    self.fc_identity = nn.Linear(128, n_roles)
+    self.fc_evaluation = nn.Linear(128, n_actions)
+    self.fc_vote = nn.Linear(128, n_actions)
+    self.drop = nn.Dropout()
+    self.decoders = {"act": self.fc_act, "identity": self.fc_identity, "evaluation": self.fc_evaluation, "vote": self.fc_vote}
+
+    torch.nn.init.xavier_uniform_(self.conv.weight)
+    torch.nn.init.xavier_uniform_(self.fc2.weight)
+    torch.nn.init.xavier_uniform_(self.fc_act.weight)
+    torch.nn.init.xavier_uniform_(self.fc_identity.weight)
+    torch.nn.init.xavier_uniform_(self.fc_evaluation.weight)
+    torch.nn.init.xavier_uniform_(self.fc_vote.weight)
+
+  def forward(self, x, act_type):
+    x = self.flatten(x).permute(1,0)[None,:,:]
+    x = self.flatten1(self.drop(self.conv(x)))
+    # print(x.shape)
+    x = torch.sigmoid((self.drop(self.fc2(x))))
+    x = self.decoders[act_type](x)
+    # Returning something that is not softmax-ed.
+    return x
+
 class QNetwork_random(nn.Module):
   def __init__(self, input_size, n_actions, n_roles):
     super().__init__()
