@@ -6,7 +6,7 @@ import time
 # Initializing agents
 
 def generate_trios():
-    net = QNetwork(3120, 12, 6)
+    net = QNetwork(4440, 12, 6)
     opt = torch.optim.Adam(net.parameters(), lr=1e-3)
     agent = QNetworkAgent(None, net, opt)
     return net, opt, agent

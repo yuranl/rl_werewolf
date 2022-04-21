@@ -73,8 +73,9 @@ class QNetworkAgent:
       q_target = reward + q_target
     # Compute the MSE loss between the predicted and target values
     
-    loss.retain_grad()
+    # loss.retain_grad()
     loss = F.mse_loss(q_pred, q_target)
+    loss.retain_grad()
     # print(q_pred)
     # print(q_target)
 

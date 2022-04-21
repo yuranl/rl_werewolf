@@ -44,7 +44,7 @@ class Game:
     # public information
     self.alive = torch.ones((self.total_round, self.num_players)) # size: total_round * num_players (turn number, player id) -> whether still alive at this turn
     self.hunter_kill = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players (turn number, player id) -> whether hunter killed this player at this turn
-    self.vote_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players -> vote (in terms of player id)
+    self.vote_history = torch.zeros((self.total_round, self.num_players, self.num_players)) # size: total_round * num_players * num_players -> (turn number, player id 1, player id 2) -> whether player id 1 voted for player id 2 at turn number
     self.identity_claim_history = torch.zeros((self.total_round, self.num_players, self.num_roles)) # size: total_round * num_players (turn number, role, player id) -> whether player claims to be this role
     self.testimony_history = torch.zeros((self.total_round, self.num_players, self.num_players)) # size: total_round * num_players * num_players (turn number, player id, evaluated player id) -> evaluation
     self.eliminate_vote_history = torch.zeros((self.total_round, self.num_players, self.num_wolves)) # size: total_round * num_players * num_wolves (turn number, player id, which wolf) -> probability distribution
@@ -206,24 +206,30 @@ class Game:
         self.testimony_history[self.curr_round][i] = player_evalution
 
     # Voting
-    vote_out = torch.zeros(self.num_players)
+    vote_sum = torch.zeros(self.num_players)
     actions = torch.zeros(self.num_players)
     for i in range(len(self.roles)):
       if curr_alive[i] > 0:
-          # This will be later updated (can do votes on distribution)
+          # Only vote for one player
+          # Votes min value target of vote array; if min value is not negative, or if min value target is not alive, then treat as no vote
           role = int(torch.argmax(self.roles[i]))
           input = self.prep_input(self.dict_info[role])
           agent = self.dict_agent[role]
-          vote = torch.argmax(agent.act(input, "vote"))
-          vote_out[vote] += 1
+          agent_vote_output = agent.act(input, "vote")
+          vote = torch.argmin(agent_vote_output)
+          if curr_alive[vote] == True and agent_vote_output[vote] < 0: # check if vote is valid
+            vote_sum[vote] += 1
+            self.vote_history[self.curr_round, i, vote] = 1 # update vote history
           actions[i] = int(vote)
-    to_vote = torch.argmax(vote_out)
+          
+    to_vote = torch.argmax(vote_sum)
     curr_alive[to_vote] = min(curr_alive[to_vote], 0)
 
     # Update the situation
 
+    ## TODO: currently night changes this in place, but day updates value to next round; may want to change this logic later
     self.alive[self.curr_round + 1] = curr_alive
-    self.vote_history[self.curr_round] = vote_out
+    # self.vote_history[self.curr_round] = vote_out
     self.curr_round += 1
 
 
@@ -333,7 +339,7 @@ class Game:
     return (len(wolves), len(villagers), len(deities))
     
   def prep_input(self, private_info):
-    result = torch.cat([self.alive[:,:,None], self.hunter_kill[:,:,None], self.vote_history[:,:,None],
+    result = torch.cat([self.alive[:,:,None], self.hunter_kill[:,:,None], self.vote_history,
       self.identity_claim_history, self.testimony_history, self.eliminate_vote_history,
       private_info[:,:,None]], dim=2)
     return result
