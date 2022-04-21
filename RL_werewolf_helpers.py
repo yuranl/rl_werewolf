@@ -22,5 +22,9 @@ def epsilon_greedy(n_actions, epsilon, device):
 def compute_final_reward(game):
   if not game.ended:
     raise Exception("reward given before game ended")
-  
+
+
+  wol, vlg, dei = game.check_alives()
+
   pass
+  # return 

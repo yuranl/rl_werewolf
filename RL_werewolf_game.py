@@ -17,17 +17,19 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ##@title Game Class
 
 class Game:
-  def __init__(self, num_players=12, num_wolves=4, roles="swhf", total_round=10):
+  def __init__(self, num_players=12, num_wolves=4, roles="swhf", total_round=10, agent_nets=None):
 
     # Read input
     self.num_players = num_players
     self.num_wolves = num_wolves
     self.roles = roles # default villager roles: seer, witch, hunter, fool (swhf)
+    # dict_identity = {0: "werewolf", 1: "villager", 2: "seer", 3: "witch", 4: "hunter", 5: "fool"}
     self.num_roles = 6 # number of different roles
     self.total_round = total_round # maximum game rounds, game will be forced to end after this many rounds
+    self.curr_round = 0
 
     # true player identities (not given to players)
-    self.roles = self.assign_roles() # size: num_roles * num_players (one hot encoding for players' true identities)
+    self.roles = self.assign_roles() # size: num_players * num_roles (one hot encoding for players' true identities)
 
     # global state variables (not given to players)
     self.ended = False
@@ -51,24 +53,26 @@ class Game:
     self.civilian_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players (ALL EMPTY) (fool also has no access to private information)
 
 
+    # Player Agents
+    self.villager_net, self.werewolf_net, self.seer_net, self.witch_net, self.hunter_net, self.fool_net = agent_nets
+
   def next_round(self):
 
     ####################
     ### The Night ###
     ####################
     # Prepare situation for the night
-    still_alive = [id for id, player in enumerate(self.status) if player > 0]
-    vote_kill = [0] * self.num_players
+
+    # Get current alive players
+    curr_alive = self.alive[self.curr_round]
 
     #########################################
     ### Every Player does his thing ###
     #########################################
+
     # Wolves
-
-
     """
     Meta-code:
-    (in environment: self.status)
     act = player.act(self.status) # player acts based on the current environment
     # Do we share the same player network across the same group?
     # i.e. for 5 villagers do we train the same network, and update 5 times each round?
@@ -77,14 +81,14 @@ class Game:
     reward, new_turn_number = self.act(act) / nextround(act)
     player.train(act, reward, current_status) # or anything else that we need
     """
-    for player in self.status:
-      if player > 0:
-        # Still alive
-        if player == 1:
+    vote_kill = torch.zeros(self.num_players)
+    for i in range(len(self.roles)):
+      if curr_alive[i] > 0 and self.roles[i][0] == 1:
           # This will be later updated (can do votes on distribution)
-          vote = random.choice(still_alive)
-          vote_kill[vote] += 1
-    to_kill = random.choice([id for id, count in enumerate(vote_kill) if count==max(vote_kill)])
+          wolf_input = self.prep_input(self.wolf_history)
+          vote = F.softmax(self.werewolf_net(wolf_input)) # softmax
+          vote_kill += vote
+    to_kill = torch.argmax(vote_kill)
 
     # Prophet
 
@@ -101,6 +105,9 @@ class Game:
     # Update the situation
     if self.status[to_kill] > 0:
       self.status[to_kill] = -self.status[to_kill]
+
+    self.alive[self.curr_round + 1] = curr_alive
+    self.curr_round += 1
 
 
     # What are the results? i.e. rewards
@@ -119,17 +126,18 @@ class Game:
     return message
 
   def assign_roles(self):
-    status = []
-    # Seer, witch, hunters
-    status.append(3)
-    status.append(4)
-    status.append(5)
-    for i in range(num_wolves):
-      status.append(1)
-    for i in range(num_players-3-num_wolves):
-      status.append(2)
-    random.shuffle(status)
+    status = torch.zeros((self.num_players, self.num_roles))
+    status[0][2] = 1 # seer
+    status[1][3] = 1 # witch
+    status[2][4] = 1 # hunter
+    status[3][5] = 1 # fool
+    status[4:8, 1] = 1 # villagers
+    status[8:12, 0] = 1 # werewolves
+    status = status[torch.randperm(status.size()[0])]
     return(status)
+
+
+  # Checks for final conditions
 
   def check_end_reason(alive_status):
     if alive_status[0] == 0:
@@ -150,11 +158,15 @@ class Game:
     villagers = [id for id, player in enumerate(status) if player==2]
     deities = [id for id, player in enumerate(status) if player > 2]
     return (len(wolves), len(villagers), len(deities))
+    
+  def prep_input(self, private_info):
+    return torch.cat([self.alive, self.hunter_kill, self.vote_history,
+      self.identity_claim_history, self.testimony_history, self.eliminate_vote_history, private_info])
 
 
 # Running - Random Results
 results = defaultdict(int)
-for i in range(100):
-  game = Game()
+for i in range(1):
+  game = Game(agent_nets=())
   results[game.run()] += 1
 print(results)
