@@ -17,13 +17,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ##@title Game Class
 
 class Game:
-  def __init__(self, num_players=12, num_wolves=4, roles="swhf", total_round=10, agent_nets=None):
+  def __init__(self, num_players=12, num_wolves=4, roles="swhf", total_round=10, agents=None):
 
     # Read input
     self.num_players = num_players
     self.num_wolves = num_wolves
     self.roles = roles # default villager roles: seer, witch, hunter, fool (swhf)
-    # dict_identity = {0: "werewolf", 1: "villager", 2: "seer", 3: "witch", 4: "hunter", 5: "fool"}
     self.num_roles = 6 # number of different roles
     self.total_round = total_round # maximum game rounds, game will be forced to end after this many rounds
     self.curr_round = 0
@@ -51,10 +50,11 @@ class Game:
     # self.wolf_history = torch.zeros((self.total_round, self.num_players * 2)) # size: total_round * num_players (average of kill discussion record, space for strategy discussion)
     self.wolf_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players (average of kill discussion record)
     self.civilian_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players (ALL EMPTY) (fool also has no access to private information)
-
+    self.dict_info = {0: self.wolf_history, 1: self.civilian_history, 2: self.seer_history, 3: self.witch_history, 4: self.hunter_history, 5: self.civilian_history}
+    self.dict_agent = {0: self.werewolf_agent, 1: self.villager_agent, 2: self.seer_agent, 3: self.witch_agent, 4: self.hunter_agent, 5: self.fool_agent}
 
     # Player Agents
-    self.villager_net, self.werewolf_net, self.seer_net, self.witch_net, self.hunter_net, self.fool_net = agent_nets
+    self.villager_agent, self.werewolf_agent, self.seer_agent, self.witch_agent, self.hunter_agent, self.fool_agent = agents
 
   def next_round(self):
 
@@ -86,7 +86,7 @@ class Game:
       if curr_alive[i] > 0 and self.roles[i][0] == 1:
           # This will be later updated (can do votes on distribution)
           wolf_input = self.prep_input(self.wolf_history)
-          vote = F.softmax(self.werewolf_net(wolf_input)) # softmax
+          vote = F.softmax(self.werewolf_agent(wolf_input, "act")) # softmax
           vote_kill += vote
     to_kill = torch.argmax(vote_kill)
 
@@ -100,13 +100,28 @@ class Game:
     ##################
     ### The Day ###
     ##################
-    # Ordinary Villager (voting to out people)
+    # Who died?
+    curr_alive[to_kill] = min(curr_alive[to_kill], 0)
+
+    # Everyone (showing identity, giving evaluations, voting)
+
+    # Voting
+    vote_out = torch.zeros(self.num_players)
+    for i in range(len(self.roles)):
+      if curr_alive[i] > 0:
+          # This will be later updated (can do votes on distribution)
+          role = torch.argmax(self.roles[i])
+          input = self.prep_input(self.dict_info[role])
+          agent = self.dict_agent[role]
+          vote = torch.argmax(agent(input, "vote"))
+          vote_out[vote] += 1
+    to_vote = torch.argmax(vote_out)
+    curr_alive[to_vote] = min(curr_alive[to_vote], 0)
 
     # Update the situation
-    if self.status[to_kill] > 0:
-      self.status[to_kill] = -self.status[to_kill]
 
     self.alive[self.curr_round + 1] = curr_alive
+    self.vote_history[self.curr_round] = vote_out
     self.curr_round += 1
 
 
@@ -114,7 +129,7 @@ class Game:
     reward = self.get_reward(self.status) # or, conditional evaluation
     
     # Check situation
-    alives = check_alives(self.status)
+    alives = self.check_alives(self.status)
     if check_ended(alives):
       return check_end_reason(alives), False
     return "", True
@@ -162,11 +177,3 @@ class Game:
   def prep_input(self, private_info):
     return torch.cat([self.alive, self.hunter_kill, self.vote_history,
       self.identity_claim_history, self.testimony_history, self.eliminate_vote_history, private_info])
-
-
-# Running - Random Results
-results = defaultdict(int)
-for i in range(1):
-  game = Game(agent_nets=())
-  results[game.run()] += 1
-print(results)

@@ -15,15 +15,22 @@ import torch.nn.functional as F
 class QNetwork(nn.Module):
   def __init__(self, input_size, n_actions):
     super().__init__()
+    self.flatten = nn.Flatten(start_dim=0)
     self.fc1 = nn.Linear(input_size, 1024)
     self.fc2 = nn.Linear(1024, 128)
-    self.fc3 = nn.Linear(128, n_actions)
+    self.fc_act = nn.Linear(128, n_actions)
+    self.fc_identity = nn.Linear(128, n_actions)
+    self.fc_evaluation = nn.Linear(128, n_actions)
+    self.fc_vote = nn.Linear(128, n_actions)
     self.drop = nn.Dropout()
+    self.decoders = {"act": self.fc_act, "identity": self.fc_identity, "evaluation": self.fc_evaluation, "vote": self.fc_vote}
 
-  def forward(self, x):
+  def forward(self, x, act_type):
+    x = self.flatten(x)
+    print(x.shape)
     x = torch.relu((self.drop(self.fc1(x))))
     x = torch.relu((self.drop(self.fc2(x))))
-    x = torch.relu((self.fc3(x)))
+    x = self.decoders[act_type](x)
     # Returning something that is not softmax-ed.
     return x
 
