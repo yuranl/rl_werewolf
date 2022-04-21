@@ -115,7 +115,7 @@ class Game:
     seer_id = self.role2_id
     if self.alive[self.curr_round][seer_id] > 0: # action if alive
       seer_input = self.prep_input(self.seer_history)
-      seer_action = self.seer_net(seer_input, "act")
+      seer_action = self.seer_agent.act(seer_input, "act")
       to_check = torch.argmax(seer_action)
       if self.roles[to_check][0] > 0: # checked player is wolf
         self.seer_history[self.curr_round][to_check] = -1
@@ -137,7 +137,7 @@ class Game:
         self.witch_history[self.curr_round][to_kill] = 1
       
       witch_input = self.prep_input(self.witch_history)
-      witch_action = self.witch_net(witch_input, "act")
+      witch_action = self.witch_agent.act(witch_input, "act")
       highest = torch.argmax(witch_action)
       lowest = torch.argmin(witch_action)
       poisoned = None # needed for hunter information
@@ -185,17 +185,27 @@ class Game:
     """
     if self.hunter_night_ability == True:
         hunter_input = self.prep_input(self.hunter_history)
-        hunter_action = self.hunter_net(hunter_input, "act")
+        hunter_action = self.hunter_agent.act(hunter_input, "act")
         hunter_lowest = torch.argmin(hunter_action)
         if hunter_action[hunter_lowest] < 0:
           self.alive[self.curr_round][hunter_lowest] = 0 # hunter kill
           self.hunter_kill[self.curr_round][hunter_lowest] = 1 # update public information
 
     # Everyone (showing identity, giving evaluations, voting)
+    curr_alive = self.alive[self.curr_round]
+    for i in range(self.num_players): 
+      if curr_alive[i] > 0: # testimony for each player alive
+        role = int(torch.argmax(self.roles[i]))
+        input = self.prep_input(self.dict_info[role])
+        agent = self.dict_agent[role]
+        player_claim = agent.act(input, "identity")
+        player_evalution = agent.act(input, "evaluation")
+        self.identity_claim_history[self.curr_round][i] = player_claim # update claim and evalution as public information available to players speaking after this player
+        self.testimony_history[self.curr_round][i] = player_evalution
 
     # Voting
     vote_out = torch.zeros(self.num_players)
-    for i in range(len(self.roles)):
+    for i in range(self.num_players):
       if curr_alive[i] > 0:
           # This will be later updated (can do votes on distribution)
           role = int(torch.argmax(self.roles[i]))
