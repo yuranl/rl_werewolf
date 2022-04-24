@@ -69,7 +69,7 @@ class Game:
     self.dict_agent = {0: self.werewolf_agent, 1: self.villager_agent, 2: self.seer_agent, 3: self.witch_agent, 4: self.hunter_agent, 5: self.fool_agent}
     self.dict_rewards = {0: self.werewolf_reward, 1: self.villager_reward, 2: self.seer_reward, 3: self.witch_reward, 4: self.hunter_reward, 5: self.fool_reward}
 
-  def next_round(self, print_info):
+  def next_round(self, print_info, train):
 
     ####################
     ### The Night ###
@@ -276,7 +276,8 @@ class Game:
 
     # actions = self.get_actions()
     rewards = self.get_rewards()
-    self.update_all_models(beginning_all_states, end_all_states, actions, rewards)
+    if train:
+      self.update_all_models(beginning_all_states, end_all_states, actions, rewards)
 
     if self.check_ended(alives):
       return result_str, False
@@ -289,10 +290,10 @@ class Game:
         return id
     return -1
   
-  def run(self, print_info):
+  def run(self, print_info, train):
     message, running = "", True
     while running:
-      message, running = self.next_round(print_info)
+      message, running = self.next_round(print_info, train)
     return message
 
   def assign_roles(self):

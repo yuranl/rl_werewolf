@@ -8,6 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from RL_werewolf_helpers import epsilon_greedy
+
 
 # Q Network: given the game states, decide what to do
 # Structure: input -> 1024 -> 128 -> n_actions, linear + ReLU, first 2 with dropout
@@ -96,6 +98,7 @@ class QNetwork_convolution(nn.Module):
     # print(x.shape)
     x = torch.sigmoid((self.drop(self.fc2(x))))
     x = self.decoders[act_type](x)
+    x /= torch.sum(x)
     # Returning something that is not softmax-ed.
     return x
 
@@ -111,15 +114,19 @@ class QNetwork_random(nn.Module):
     return res
 
 class QNetworkAgent:
-  def __init__(self, policy, q_net, optimizer):
-    self.policy = policy
+  def __init__(self, policy1, policy2, q_net, optimizer):
+    self.policy1 = policy1
+    self.policy2 = policy2
     self.q_net = q_net
     self.optimizer = optimizer
   
   def act(self, state, action):
     # on selecting, we do not grad
     with torch.no_grad():
-      return self.q_net(state, action) # self.policy(self.q_net, state)
+      if action != "identity":
+        return self.policy1(self.q_net, state, action)
+      else:
+        return self.policy2(self.q_net, state, action)
   
   def train(self, state, action, reward, next_state, decoder_type):
     # Predicted Q value

@@ -13,7 +13,9 @@ def generate_trios(network_type=QNetwork_sigmoid, lr=1e-3):
     opt = None
     if network_type is not QNetwork_random:
       opt = torch.optim.Adam(net.parameters(), lr=lr)
-    agent = QNetworkAgent(None, net, opt)
+    policy1 = epsilon_greedy(12, 0.05, None)
+    policy2 = epsilon_greedy(6, 0.05, None)
+    agent = QNetworkAgent(policy1, policy2, net, opt)
     return net, opt, agent
 
 villager_net, villager_opt, villager_agent = generate_trios(QNetwork_convolution, lr=1e-4)
@@ -34,7 +36,8 @@ start_time = time.time()
 for i in tqdm(range(epoch)):
   game = Game(total_round=20, agents=(villager_agent, werewolf_agent, seer_agent, witch_agent, hunter_agent, fool_agent))
   print_info = (i % 5 == 0)
-  results[dict_res[game.run(print_info)]] += 1
+  train = True # (i < 100)
+  results[dict_res[game.run(print_info, train)]] += 1
   results_history[i] = copy.deepcopy(results)
   if i % 100 == 0:
     plt.plot(results_history[:,0], label="Tie")

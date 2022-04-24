@@ -8,13 +8,14 @@ import torch.nn.functional as F
 
 
 def epsilon_greedy(n_actions, epsilon, device):
-  def policy_fn(q_net, state):
+  def policy_fn(q_net, state, action):
     if torch.rand(1) < epsilon:
-      return torch.randint(n_actions, size=(1,), device=device)
+      res = torch.rand(n_actions)
+      return res
     else:
       with torch.no_grad():
-        q_pred = q_net(state)
-        return torch.argmax(q_pred).view(1,)
+        q_pred = q_net(state, action)
+        return q_pred
   return policy_fn
 
 # reward for each player at end of game
