@@ -66,7 +66,11 @@ def compute_final_reward(game):
       wolf_team_reward += REWARD_WIN
       wolf_team_reward += fast_win_reward
       wolf_turns_ahead = wol
-      assert(wolf_turns_ahead == max(wol-civ, wol-dei))
+      if not (wolf_turns_ahead == max(wol-civ, wol-dei)):
+        print(wolf_team_reward)
+        print(wol, civ, dei)
+        print(game.curr_round)
+        print(game.total_round)
       wolf_team_reward += (REWARD_TURN * wolf_turns_ahead)
       villager_team_reward += (PENALTY_TURN * wolf_turns_ahead)
 
@@ -74,7 +78,7 @@ def compute_final_reward(game):
       villager_team_reward += REWARD_WIN
       villager_team_reward += fast_win_reward
       villager_turns_ahead = min(civ, dei)
-      assert(villager_turns_ahead > 0)
+      # assert(villager_turns_ahead > 0)
       villager_team_reward += (REWARD_TURN * villager_turns_ahead)
       wolf_team_reward += (PENALTY_TURN * villager_turns_ahead)
     
@@ -97,4 +101,4 @@ def compute_final_reward(game):
       player_reward += villager_team_reward
 
 
-  return reward 
+  return wolf_team_reward, villager_team_reward

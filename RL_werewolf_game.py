@@ -247,6 +247,12 @@ class Game:
 
     # Summarize all losts (incorporate this into the other things, later)
     if self.check_ended(alives):
+      # self.ended = True
+      # self.werewolf_reward, self.villager_reward = compute_final_reward(self)
+      # self.seer_reward = self.villager_reward
+      # self.witch_reward = self.villager_reward
+      # self.hunter_reward = self.villager_reward
+      # self.fool_reward = self.villager_reward
       result_str = self.check_end_reason(alives)
       if result_str == "Wolves Lost!":
         self.werewolf_reward -= 10
@@ -274,7 +280,7 @@ class Game:
         self.hunter_reward -= 2
 
 
-    # actions = self.get_actions()
+    actions = self.get_actions()
     rewards = self.get_rewards()
     if train:
       self.update_all_models(beginning_all_states, end_all_states, actions, rewards)
