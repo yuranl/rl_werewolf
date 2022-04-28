@@ -28,18 +28,17 @@ fool_net, fool_opt, fool_agent = generate_trios(QNetwork_convolution, lr=1e-4)
 # Running - Random Results
 results = np.zeros(4,)
 dict_res = {"Wolves Lost!" : 1, "Deities Killed!" : 2, "Villagers Lost!": 3, "Tie!": 0}
-epoch = 500
+epoch = 200
 results_history = np.zeros((epoch, 4))
 
 start_time = time.time()
-# prev_weights = torch.clone(villager_agent.q_net.fc2.weight).detach_()
 for i in tqdm(range(epoch)):
   game = Game(total_round=20, agents=(villager_agent, werewolf_agent, seer_agent, witch_agent, hunter_agent, fool_agent))
   print_info = (i % 5 == 0)
   train = True # (i < 100)
   results[dict_res[game.run(print_info, train)]] += 1
   results_history[i] = copy.deepcopy(results)
-  if i % 100 == 0:
+  if i % 50 == 0:
     plt.plot(results_history[:,0], label="Tie")
     plt.plot(results_history[:,1], label="Wolves Lost")
     plt.plot(results_history[:,2], label="Deities Killed")
@@ -47,9 +46,6 @@ for i in tqdm(range(epoch)):
     plt.legend()
     plt.show()
 
-# after_weights = villager_agent.q_net.fc2.weight
-
-# print(torch.sum(torch.abs(after_weights - prev_weights)))
 print("--- %s seconds ---" % (time.time() - start_time))
 plt.plot(results_history[:,0], label="Tie")
 plt.plot(results_history[:,1], label="Wolves Lost")

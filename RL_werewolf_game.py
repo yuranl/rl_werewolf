@@ -220,7 +220,7 @@ class Game:
           agent = self.dict_agent[role]
           agent_vote_output = agent.act(input, "vote")
           vote = torch.argmin(agent_vote_output)
-          if curr_alive[vote] == True and agent_vote_output[vote] < 0: # check if vote is valid
+          if curr_alive[vote] == True: # and agent_vote_output[vote] < 0: # check if vote is valid
             vote_sum[vote] += 1
             self.vote_history[self.curr_round, i, vote] = 1 # update vote history
           actions[i] = int(vote)
@@ -244,6 +244,7 @@ class Game:
     alives = self.check_alives()
 
     end_all_states = self.get_all_states()
+    # print(end_all_states[0] - beginning_all_states[0])
 
     # Summarize all losts (incorporate this into the other things, later)
     if self.check_ended(alives):
@@ -325,7 +326,10 @@ class Game:
   def get_actions(self):
     # getting the actions of all players
     # Not used right now!
-    actions = self.vote_history[self.curr_round-1]
+    votes = self.vote_history[self.curr_round-1]
+    testimonies = self.testimony_history[self.curr_round-1]
+    identities = self.identity_claim_history[self.curr_round-1]
+    actions = (votes, testimonies, identities)
     return actions
 
   def get_rewards(self):
@@ -334,13 +338,22 @@ class Game:
     return self.werewolf_reward, self.villager_reward, self.seer_reward, self.witch_reward, self.hunter_reward, self.fool_reward
 
   def update_all_models(self, beginning_all_states, end_all_states, actions, rewards):
-
+    role_action_dict = {0: self.wolf_history[self.curr_round-1], 1: self.civilian_history[self.curr_round-1],
+      2: self.seer_history[self.curr_round-1], 3: self.witch_history[self.curr_round-1],
+      4: self.hunter_history[self.curr_round-1], 5: self.civilian_history[self.curr_round-1]}
     # Training the voting 
-    voting = actions
+    voting, testimony, identities = actions
     for i in range(self.num_players):
       role = int(self.roles_compact[i])
+      # print(role)
+      # print(voting[i])
+      # print(identities[i])
+      # print(testimony[i])
+      # print(role_action_dict[role])
       self.dict_agent[role].train(beginning_all_states[role], voting[i], rewards[role], end_all_states[role], "vote")
-
+      self.dict_agent[role].train(beginning_all_states[role], identities[i], rewards[role], end_all_states[role], "identity")
+      self.dict_agent[role].train(beginning_all_states[role], role_action_dict[role], rewards[role], end_all_states[role], "act")
+      self.dict_agent[role].train(beginning_all_states[role], testimony[i], rewards[role], end_all_states[role], "evaluation")
     # Training the votekill, explain, etc. everything else, as we have
 
 

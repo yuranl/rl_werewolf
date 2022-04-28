@@ -76,17 +76,31 @@ class QNetwork_convolution(nn.Module):
     # input shape: 10 * 12 * 37
     self.flatten = nn.Flatten()
     self.flatten1 = nn.Flatten(0)
-    self.conv = nn.Conv1d(12 * 37, 64, 10, stride=5)
-    self.fc2 = nn.Linear(192, 128)
+    self.conv_act = nn.Conv1d(12 * 37, 64, 10, stride=5)
+    self.conv_identity = nn.Conv1d(12 * 37, 64, 10, stride=5)
+    self.conv_evaluation = nn.Conv1d(12 * 37, 64, 10, stride=5)
+    self.conv_vote = nn.Conv1d(12 * 37, 64, 10, stride=5)
+    self.fc2_act = nn.Linear(192, 128)
+    self.fc2_identity = nn.Linear(192, 128)
+    self.fc2_evaluation = nn.Linear(192, 128)
+    self.fc2_vote = nn.Linear(192, 128)
     self.fc_act = nn.Linear(128, n_actions)
     self.fc_identity = nn.Linear(128, n_roles)
     self.fc_evaluation = nn.Linear(128, n_actions)
     self.fc_vote = nn.Linear(128, n_actions)
     self.drop = nn.Dropout()
     self.decoders = {"act": self.fc_act, "identity": self.fc_identity, "evaluation": self.fc_evaluation, "vote": self.fc_vote}
+    self.fc2s = {"act": self.fc2_act, "identity": self.fc2_identity, "evaluation": self.fc2_evaluation, "vote": self.fc2_vote}
+    self.convs = {"act": self.conv_act, "identity": self.conv_identity, "evaluation": self.conv_evaluation, "vote": self.conv_vote}
 
-    torch.nn.init.xavier_uniform_(self.conv.weight)
-    torch.nn.init.xavier_uniform_(self.fc2.weight)
+    torch.nn.init.xavier_uniform_(self.conv_act.weight)
+    torch.nn.init.xavier_uniform_(self.conv_identity.weight)
+    torch.nn.init.xavier_uniform_(self.conv_evaluation.weight)
+    torch.nn.init.xavier_uniform_(self.conv_vote.weight)
+    torch.nn.init.xavier_uniform_(self.fc2_act.weight)
+    torch.nn.init.xavier_uniform_(self.fc2_identity.weight)
+    torch.nn.init.xavier_uniform_(self.fc2_evaluation.weight)
+    torch.nn.init.xavier_uniform_(self.fc2_vote.weight)
     torch.nn.init.xavier_uniform_(self.fc_act.weight)
     torch.nn.init.xavier_uniform_(self.fc_identity.weight)
     torch.nn.init.xavier_uniform_(self.fc_evaluation.weight)
@@ -94,9 +108,9 @@ class QNetwork_convolution(nn.Module):
 
   def forward(self, x, act_type):
     x = self.flatten(x).permute(1,0)[None,:,:]
-    x = self.flatten1(self.drop(self.conv(x)))
+    x = self.flatten1(self.drop(self.convs[act_type](x)))
     # print(x.shape)
-    x = torch.sigmoid((self.drop(self.fc2(x))))
+    x = torch.sigmoid((self.drop(self.fc2s[act_type](x))))
     x = self.decoders[act_type](x)
     x /= torch.sum(x)
     # Returning something that is not softmax-ed.
@@ -120,19 +134,20 @@ class QNetworkAgent:
     self.q_net = q_net
     self.optimizer = optimizer
   
-  def act(self, state, action):
+  # Act_type <==> decoder_type
+  def act(self, state, act_type):
     # on selecting, we do not grad
     with torch.no_grad():
-      if action != "identity":
-        return self.policy1(self.q_net, state, action)
+      if act_type != "identity":
+        return self.policy1(self.q_net, state, act_type)
       else:
-        return self.policy2(self.q_net, state, action)
+        return self.policy2(self.q_net, state, act_type)
   
   def train(self, state, action, reward, next_state, decoder_type):
     # Predicted Q value
     # action: type of decoder
     q_pred = self.q_net(state, decoder_type)
-    q_pred = q_pred[int(action)]
+    q_pred = q_pred[int(torch.argmax(action))]
     with torch.no_grad():
       q_target = torch.max(self.q_net(next_state, decoder_type))
       q_target = reward + q_target
@@ -142,16 +157,3 @@ class QNetworkAgent:
       self.optimizer.zero_grad()
       loss.backward()
       self.optimizer.step()
-
-# n_steps = 50000
-# gamma = 0.99
-# epsilon = 0.1
-
-# q_net = QNetwork(300, 12).to(device)
-# policy = epsilon_greedy(env.num_actions(), epsilon)
-# optimizer = torch.optim.Adam(q_net.parameters(), lr=1e-3)
-# agent = QNetworkAgent(policy, q_net, optimizer)
-# eps_b_qn = learn_env(env, agent, gamma, n_steps)
-
-
-# Some scripts for training the agents
