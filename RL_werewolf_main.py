@@ -28,7 +28,7 @@ fool_net, fool_opt, fool_agent = generate_trios(QNetwork_convolution, lr=1e-4)
 # Running - Random Results
 results = np.zeros(4,)
 dict_res = {"Wolves Lost!" : 1, "Deities Killed!" : 2, "Villagers Lost!": 3, "Tie!": 0}
-epoch = 200
+epoch = 1000
 results_history = np.zeros((epoch, 4))
 
 start_time = time.time()
@@ -37,8 +37,10 @@ for i in tqdm(range(epoch)):
   print_info = (i % 5 == 0)
   train = True # (i < 100)
   results[dict_res[game.run(print_info, train)]] += 1
-  results_history[i] = copy.deepcopy(results)
-  if i % 50 == 0:
+  if i % 10 == 0:
+    print_game_info(game)
+  results_history[i] = copy.deepcopy(results / i)
+  if i % 100 == 0:
     plt.plot(results_history[:,0], label="Tie")
     plt.plot(results_history[:,1], label="Wolves Lost")
     plt.plot(results_history[:,2], label="Deities Killed")

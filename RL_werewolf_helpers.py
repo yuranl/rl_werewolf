@@ -102,3 +102,54 @@ def compute_final_reward(game):
 
 
   return wolf_team_reward, villager_team_reward
+
+
+def print_game_info(game):
+  # game ending round
+  print("number of rounds in this game: ", game.curr_round)
+  wol, civ, dei = game.check_alives()
+  print("final survival info: w", wol, " c:", civ, " d:", dei)
+  # average valid vote rate
+
+  # for each round compute total valid votes and total alive
+  total_valid_vote = 0
+  total_alive = 0
+  total_voted = 0 # number of people being voted out
+  valid_vote_rates = []
+  for i in range (game.curr_round):
+    curr_alive = 0
+    curr_valid_vote = 0
+    curr_voted = 0
+    # print(game.vote_history)
+    for j in range (game.num_players):
+      curr_alive += game.alive[i][j]
+      for k in range (game.num_players):
+        if game.vote_history[i][j][k] and game.alive[i][k]:
+          curr_valid_vote += 1
+      curr_voted += max(game.vote_history[i, :, k])    
+        
+    total_valid_vote += curr_valid_vote
+    total_alive += curr_alive
+    total_voted += curr_voted
+    curr_valid_rate = curr_valid_vote / curr_alive
+    #curr_voted_rate = curr_voted / curr_alive
+    print("curr votes: ", curr_valid_vote, "curr being voted: ", curr_voted,"curr alive: ", curr_alive)
+    assert(curr_valid_rate <= 1)
+    #assert(curr_voted_rate <= 1)
+    valid_vote_rates.append(curr_valid_rate)
+
+  total_valid_rate = total_valid_vote / total_alive
+  #total_voted_rate = total_voted / total_alive
+  print("total valid vote rate: ", total_valid_rate) 
+  print("average number of people being voted:", total_voted / game.curr_round)
+  #print("total rate of being voted:", total_voted_rate) 
+
+  return game.curr_round, total_valid_rate, valid_vote_rates
+
+
+  # alive history
+  # voting history
+
+
+
+  

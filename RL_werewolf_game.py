@@ -48,9 +48,10 @@ class Game:
     self.vote_history = torch.zeros((self.total_round, self.num_players, self.num_players)) # size: total_round * num_players * num_players -> (turn number, player id 1, player id 2) -> whether player id 1 voted for player id 2 at turn number
     self.identity_claim_history = torch.zeros((self.total_round, self.num_players, self.num_roles)) # size: total_round * num_players (turn number, role, player id) -> whether player claims to be this role
     self.testimony_history = torch.zeros((self.total_round, self.num_players, self.num_players)) # size: total_round * num_players * num_players (turn number, player id, evaluated player id) -> evaluation
-    self.eliminate_vote_history = torch.zeros((self.total_round, self.num_players, self.num_wolves)) # size: total_round * num_players * num_wolves (turn number, player id, which wolf) -> probability distribution
+    
     
     # private information
+    # self.eliminate_vote_history = torch.zeros((self.total_round, self.num_players, self.wolf)) # was wolf private information size: total_round * num_players * num_players (turn number, player id, which wolf) ->  probability distribution
     self.seer_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players (which player checked and identity given [0: unchecked, 1: villager, -1: werewolf])
     self.witch_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players (werewolf kill target given, poison, antedote used [0: not killed, 1: killed not saved, 2: killed saved, -1: poisoned])
     self.hunter_history = torch.zeros((self.total_round, self.num_players)) # size: total_round * num_players ([all 0 if cannot use ability, all 1 if can use ability, -1 for ability target])
@@ -220,7 +221,8 @@ class Game:
           agent = self.dict_agent[role]
           agent_vote_output = agent.act(input, "vote")
           vote = torch.argmin(agent_vote_output)
-          if curr_alive[vote] == True: # and agent_vote_output[vote] < 0: # check if vote is valid
+          # if curr_alive[vote] == True: # and agent_vote_output[vote] < 0: # check if vote is valid
+          if curr_alive[vote] == True and agent_vote_output[vote] < 1:
             vote_sum[vote] += 1
             self.vote_history[self.curr_round, i, vote] = 1 # update vote history
           actions[i] = int(vote)
@@ -383,6 +385,6 @@ class Game:
     
   def prep_input(self, private_info):
     result = torch.cat([self.alive[:,:,None], self.hunter_kill[:,:,None], self.vote_history,
-      self.identity_claim_history, self.testimony_history, self.eliminate_vote_history,
+      self.identity_claim_history, self.testimony_history, #self.eliminate_vote_history,
       private_info[:,:,None]], dim=2)
     return result

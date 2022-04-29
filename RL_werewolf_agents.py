@@ -73,13 +73,14 @@ class QNetwork_relu(nn.Module):
 class QNetwork_convolution(nn.Module):
   def __init__(self, input_size, n_actions, n_roles):
     super().__init__()
-    # input shape: 10 * 12 * 37
+    # input shape: 10 * 12 * 33
+    input_shape = 396
     self.flatten = nn.Flatten()
     self.flatten1 = nn.Flatten(0)
-    self.conv_act = nn.Conv1d(12 * 37, 64, 10, stride=5)
-    self.conv_identity = nn.Conv1d(12 * 37, 64, 10, stride=5)
-    self.conv_evaluation = nn.Conv1d(12 * 37, 64, 10, stride=5)
-    self.conv_vote = nn.Conv1d(12 * 37, 64, 10, stride=5)
+    self.conv_act = nn.Conv1d(input_shape, 64, 10, stride=5)
+    self.conv_identity = nn.Conv1d(input_shape, 64, 10, stride=5)
+    self.conv_evaluation = nn.Conv1d(input_shape, 64, 10, stride=5)
+    self.conv_vote = nn.Conv1d(input_shape, 64, 10, stride=5)
     self.fc2_act = nn.Linear(192, 128)
     self.fc2_identity = nn.Linear(192, 128)
     self.fc2_evaluation = nn.Linear(192, 128)
@@ -112,7 +113,7 @@ class QNetwork_convolution(nn.Module):
     # print(x.shape)
     x = torch.sigmoid((self.drop(self.fc2s[act_type](x))))
     x = self.decoders[act_type](x)
-    x /= torch.sum(x)
+    # x /= torch.sum(x)
     # Returning something that is not softmax-ed.
     return x
 
