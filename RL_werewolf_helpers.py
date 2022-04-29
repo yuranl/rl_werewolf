@@ -126,7 +126,7 @@ def print_game_info(game):
       for k in range (game.num_players):
         if game.vote_history[i][j][k] and game.alive[i][k]:
           curr_valid_vote += 1
-      curr_voted += max(game.vote_history[i, :, k])    
+      curr_voted += max(game.vote_history[i, :, j])    
         
     total_valid_vote += curr_valid_vote
     total_alive += curr_alive

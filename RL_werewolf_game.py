@@ -221,7 +221,8 @@ class Game:
           agent = self.dict_agent[role]
           agent_vote_output = agent.act(input, "vote")
           vote = torch.argmin(agent_vote_output)
-          # if curr_alive[vote] == True: # and agent_vote_output[vote] < 0: # check if vote is valid
+          # print(agent_vote_output)
+          # if curr_alive[vote] == True:
           if curr_alive[vote] == True and agent_vote_output[vote] < 1:
             vote_sum[vote] += 1
             self.vote_history[self.curr_round, i, vote] = 1 # update vote history
@@ -250,43 +251,43 @@ class Game:
 
     # Summarize all losts (incorporate this into the other things, later)
     if self.check_ended(alives):
-      # self.ended = True
-      # self.werewolf_reward, self.villager_reward = compute_final_reward(self)
-      # self.seer_reward = self.villager_reward
-      # self.witch_reward = self.villager_reward
-      # self.hunter_reward = self.villager_reward
-      # self.fool_reward = self.villager_reward
+      self.ended = True
+      self.werewolf_reward, self.villager_reward = compute_final_reward(self)
+      self.seer_reward = self.villager_reward
+      self.witch_reward = self.villager_reward
+      self.hunter_reward = self.villager_reward
+      self.fool_reward = self.villager_reward
       result_str = self.check_end_reason(alives)
-      if result_str == "Wolves Lost!":
-        self.werewolf_reward -= 10
-        self.villager_reward += 4
-        self.seer_reward += 2
-        self.witch_reward += 2
-        self.hunter_reward += 2
-      if result_str == "Deities Killed!":
-        self.villager_reward -= 4
-        self.seer_reward -= 2
-        self.witch_reward -= 2
-        self.hunter_reward -= 2
-        self.werewolf_reward += 10
-      if result_str == "Villagers Lost!":
-        self.villager_reward -= 4
-        self.seer_reward -= 2
-        self.witch_reward -= 2
-        self.hunter_reward -= 2
-        self.werewolf_reward += 10
-      else:
-        self.villager_reward -= 2
-        self.werewolf_reward -= 3
-        self.seer_reward -= 2
-        self.witch_reward -= 2
-        self.hunter_reward -= 2
+      # if result_str == "Wolves Lost!":
+      #   self.werewolf_reward -= 10
+      #   self.villager_reward += 4
+      #   self.seer_reward += 2
+      #   self.witch_reward += 2
+      #   self.hunter_reward += 2
+      # if result_str == "Deities Killed!":
+      #   self.villager_reward -= 4
+      #   self.seer_reward -= 2
+      #   self.witch_reward -= 2
+      #   self.hunter_reward -= 2
+      #   self.werewolf_reward += 10
+      # if result_str == "Villagers Lost!":
+      #   self.villager_reward -= 4
+      #   self.seer_reward -= 2
+      #   self.witch_reward -= 2
+      #   self.hunter_reward -= 2
+      #   self.werewolf_reward += 10
+      # else:
+      #   self.villager_reward -= 2
+      #   self.werewolf_reward -= 3
+      #   self.seer_reward -= 2
+      #   self.witch_reward -= 2
+      #   self.hunter_reward -= 2
 
 
     actions = self.get_actions()
     rewards = self.get_rewards()
     if train:
-      self.update_all_models(beginning_all_states, end_all_states, actions, rewards)
+      self.update_all_models(beginning_all_states, end_all_states, actions, rewards, print_info)
 
     if self.check_ended(alives):
       return result_str, False
@@ -339,7 +340,7 @@ class Game:
     self.fool_reward = self.villager_reward
     return self.werewolf_reward, self.villager_reward, self.seer_reward, self.witch_reward, self.hunter_reward, self.fool_reward
 
-  def update_all_models(self, beginning_all_states, end_all_states, actions, rewards):
+  def update_all_models(self, beginning_all_states, end_all_states, actions, rewards, print_able):
     role_action_dict = {0: self.wolf_history[self.curr_round-1], 1: self.civilian_history[self.curr_round-1],
       2: self.seer_history[self.curr_round-1], 3: self.witch_history[self.curr_round-1],
       4: self.hunter_history[self.curr_round-1], 5: self.civilian_history[self.curr_round-1]}
@@ -347,11 +348,12 @@ class Game:
     voting, testimony, identities = actions
     for i in range(self.num_players):
       role = int(self.roles_compact[i])
-      # print(role)
-      # print(voting[i])
-      # print(identities[i])
-      # print(testimony[i])
-      # print(role_action_dict[role])
+      if print_able and self.alive[self.curr_round][i]:
+        print(role)
+        print(voting[i])
+        print(identities[i])
+        print(testimony[i])
+        print(role_action_dict[role])
       self.dict_agent[role].train(beginning_all_states[role], voting[i], rewards[role], end_all_states[role], "vote")
       self.dict_agent[role].train(beginning_all_states[role], identities[i], rewards[role], end_all_states[role], "identity")
       self.dict_agent[role].train(beginning_all_states[role], role_action_dict[role], rewards[role], end_all_states[role], "act")
